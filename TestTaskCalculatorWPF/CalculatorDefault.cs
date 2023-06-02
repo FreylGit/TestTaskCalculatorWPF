@@ -2,7 +2,7 @@
 {
     public class CalculatorDefault : CalculatorBase
     {
-        public CalculatorDefault()
+        public CalculatorDefault(): base()
         {
             CurrentNumber = 0.0M;
         }

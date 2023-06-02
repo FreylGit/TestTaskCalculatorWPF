@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace TestTaskCalculatorWPF
@@ -13,10 +11,6 @@ namespace TestTaskCalculatorWPF
         private bool _isInteger = true;
         private bool _isOperation = false;
         private CalculatorBase _calculator;
-
-        private ConcurrentQueue<Operation> _queueOperations;
-        private ConcurrentQueue<decimal> QueueRequests;
-        private ConcurrentQueue<decimal> QueueResults;
         public MainWindow()
         {
             InitializeComponent();
@@ -24,10 +18,6 @@ namespace TestTaskCalculatorWPF
             {
                 CurrentNumber = _currentNumber
             };
-
-            _queueOperations = new ConcurrentQueue<Operation>();
-            QueueRequests = new ConcurrentQueue<decimal>();
-            QueueResults = new ConcurrentQueue<decimal>();
         }
         #region Numbers Button
         private void OneBtn_Click(object sender, RoutedEventArgs e)
@@ -164,9 +154,9 @@ namespace TestTaskCalculatorWPF
         private void ClearBtn_Click(object sender, RoutedEventArgs e)
         {
             ResetCurrentNumber();
-            QueueResults.Clear();
-            _queueOperations.Clear();
-            QueueRequests.Clear();
+            _calculator.QueueResults.Clear();
+            _calculator.QueueOperations.Clear();
+            _calculator.QueueRequests.Clear();
             UpdateLabelQueueRequestsAndQueueResults();
             _isOperation = false;
         }
@@ -180,58 +170,28 @@ namespace TestTaskCalculatorWPF
         }
 
         // Операция вычисления 
-        private async void ResultBtn_Click(object sender, RoutedEventArgs e)
+        private void ResultBtn_Click(object sender, RoutedEventArgs e)
         {
-            // _isOperation = false;
             int seconds;
             int.TryParse(SecondsSleepTB.Text, out seconds);
-            // Получаем последнее введенное число
+
             decimal currentNumber;
             decimal.TryParse(CurrentNumberL.Content.ToString(), out currentNumber);
-            QueueRequests.Enqueue(currentNumber);
+            _calculator.QueueRequests.Enqueue(currentNumber);
 
-            await Task.Run(() =>
+            Thread calculationThread = new Thread(() =>
             {
-                decimal result;
-                QueueRequests.TryDequeue(out result);
-                _calculator.CurrentNumber = result;
-                foreach (var number in QueueRequests)
-                {
-                    // Задержка вычисления
-                    Thread.Sleep(1000 * seconds);
-                    Operation o;
-                    _queueOperations.TryDequeue(out o);
-                    switch (o)
-                    {
-                        case Operation.Div:
-                            _calculator.Div(number);
-                            break;
-                        case Operation.Minus:
-                            _calculator.Minus(number);
-                            break;
-                        case Operation.Multiply:
-                            _calculator.Multiply(number);
-                            break;
-                        case Operation.Plus:
-                            _calculator.Plus(number);
-                            break;
-                        default:
-                            break;
-                    }
-                    result = _calculator.CurrentNumber;
-                }
-                QueueRequests.Clear();
-                _queueOperations.Clear();
-
+                _calculator.Calculation(seconds);
 
                 Dispatcher.Invoke(() =>
                 {
                     UpdateLabelQueueRequestsAndQueueResults();
-                    ResetCurrentNumber(result);
-
-                    QueueResults.Enqueue(result);
+                    ResetCurrentNumber(_calculator.CurrentNumber);
+                    _calculator.QueueResults.Enqueue(_calculator.CurrentNumber);
                 });
             });
+
+            calculationThread.Start();
         }
         // Сброс числа
         private void ResetCurrentNumber()
@@ -277,16 +237,14 @@ namespace TestTaskCalculatorWPF
         #region Operation Buttons
         private void Div_Click(object sender, RoutedEventArgs e)
         {
-
             if (!_isOperation)
             {
                 SaveCurrentNumber();
                 ResetCurrentNumber();
-                _queueOperations.Enqueue(Operation.Div);
+                _calculator.QueueOperations.Enqueue(Operation.Div);
                 UpdateLabelQueueRequestsAndQueueResults();
                 _isOperation = true;
             }
-
         }
 
         private void MultiplyBtn_Click(object sender, RoutedEventArgs e)
@@ -295,7 +253,7 @@ namespace TestTaskCalculatorWPF
             {
                 SaveCurrentNumber();
                 ResetCurrentNumber();
-                _queueOperations.Enqueue(Operation.Multiply);
+                _calculator.QueueOperations.Enqueue(Operation.Multiply);
                 UpdateLabelQueueRequestsAndQueueResults();
                 _isOperation = true;
             }
@@ -307,7 +265,7 @@ namespace TestTaskCalculatorWPF
             {
                 SaveCurrentNumber();
                 ResetCurrentNumber();
-                _queueOperations.Enqueue(Operation.Plus);
+                _calculator.QueueOperations.Enqueue(Operation.Plus);
                 UpdateLabelQueueRequestsAndQueueResults();
                 _isOperation = true;
             }
@@ -318,7 +276,7 @@ namespace TestTaskCalculatorWPF
             {
                 SaveCurrentNumber();
                 ResetCurrentNumber();
-                _queueOperations.Enqueue(Operation.Minus);
+                _calculator.QueueOperations.Enqueue(Operation.Minus);
                 UpdateLabelQueueRequestsAndQueueResults();
                 _isOperation = true;
             }
@@ -334,13 +292,13 @@ namespace TestTaskCalculatorWPF
             decimal result;
             decimal.TryParse(CurrentNumberL.Content.ToString(), out result);
             _calculator.CurrentNumber = result;
-            QueueRequests.Enqueue(result);
+            _calculator.QueueRequests.Enqueue(result);
             UpdateLabelQueueRequestsAndQueueResults();
         }
         private void UpdateLabelQueueRequestsAndQueueResults()
         {
-            QueueRequestsL.Content = "QueueRequests: " + QueueRequests.Count;
-            QueueResultsL.Content = "QueueResults: " + QueueResults.Count;
+            QueueRequestsL.Content = "QueueRequests: " + _calculator.QueueRequests.Count;
+            QueueResultsL.Content = "QueueResults: " + _calculator.QueueResults.Count;
         }
 
         private void EraseBtn_Click(object sender, RoutedEventArgs e)
@@ -355,21 +313,26 @@ namespace TestTaskCalculatorWPF
                 {
                     _currentNumber = 0;
                 }
-
-                CurrentNumberL.Content = _currentNumber.ToString();
+                var integerCurrentNumber = Math.Truncate(_currentNumber);
+                CurrentNumberL.Content = integerCurrentNumber.ToString();
             }
             else
             {
-                if (_fractionNumber > 10)
+                var stringNumber = CurrentNumberL.Content.ToString().Split(",");
+                var stringFractionNumber = stringNumber[1];
+                if (stringFractionNumber.Length >= 2)
                 {
+                    stringFractionNumber = stringFractionNumber.Remove(stringFractionNumber.Length - 1);
+                    CurrentNumberL.Content = stringNumber[0] + "," + stringFractionNumber;
                     _fractionNumber %= 10;
-                    CurrentNumberL.Content = _currentNumber.ToString() + "," + _fractionNumber.ToString();
                 }
                 else
                 {
                     _fractionNumber = 0;
-                    CurrentNumberL.Content = _currentNumber.ToString();
+                    CurrentNumberL.Content = stringNumber[0];
+                    _isInteger = true;
                 }
+                decimal.TryParse(CurrentNumberL.Content.ToString(), out _currentNumber);
             }
         }
     }
