@@ -4,7 +4,7 @@
     {
         public CalculatorDefault()
         {
-            CurrentNumber = 0;
+            CurrentNumber = 0.0M;
         }
         
     }

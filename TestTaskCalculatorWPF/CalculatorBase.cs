@@ -9,9 +9,9 @@
     }
     public abstract class CalculatorBase : ICalculator
     {
-        public double CurrentNumber { get; set; } = 0;
+        public decimal CurrentNumber { get; set; } = 0;
 
-        public void Div(double number)
+        public void Div(decimal number)
         {
             if (number == 0)
             {
@@ -24,17 +24,17 @@
             
         }
 
-        public void Minus(double number)
+        public void Minus(decimal number)
         {
             CurrentNumber -= number;
         }
 
-        public void Multiply(double number)
+        public void Multiply(decimal number)
         {
             CurrentNumber *= number;
         }
 
-        public void Plus(double number)
+        public void Plus(decimal number)
         {
             CurrentNumber += number;
         }

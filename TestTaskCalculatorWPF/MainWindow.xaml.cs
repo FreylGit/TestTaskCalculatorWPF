@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -7,15 +8,15 @@ namespace TestTaskCalculatorWPF
 {
     public partial class MainWindow : Window
     {
-        private double _currentNumber = 0.0;
+        private decimal _currentNumber = 0.0M;
         private int _fractionNumber = 0;
         private bool _isInteger = true;
         private bool _isOperation = false;
         private CalculatorBase _calculator;
 
         private ConcurrentQueue<Operation> _queueOperations;
-        private ConcurrentQueue<double> QueueRequests;
-        private ConcurrentQueue<double> QueueResults;
+        private ConcurrentQueue<decimal> QueueRequests;
+        private ConcurrentQueue<decimal> QueueResults;
         public MainWindow()
         {
             InitializeComponent();
@@ -25,8 +26,8 @@ namespace TestTaskCalculatorWPF
             };
 
             _queueOperations = new ConcurrentQueue<Operation>();
-            QueueRequests = new ConcurrentQueue<double>();
-            QueueResults = new ConcurrentQueue<double>();
+            QueueRequests = new ConcurrentQueue<decimal>();
+            QueueResults = new ConcurrentQueue<decimal>();
         }
         #region Numbers Button
         private void OneBtn_Click(object sender, RoutedEventArgs e)
@@ -174,7 +175,8 @@ namespace TestTaskCalculatorWPF
         {
             _isOperation = false;
             _isInteger = false;
-            CurrentNumberL.Content = _currentNumber.ToString() + ",";
+            var integerCurrentNumber = Math.Truncate(_currentNumber);
+            CurrentNumberL.Content = integerCurrentNumber.ToString() + ",";
         }
 
         // Операция вычисления 
@@ -184,13 +186,13 @@ namespace TestTaskCalculatorWPF
             int seconds;
             int.TryParse(SecondsSleepTB.Text, out seconds);
             // Получаем последнее введенное число
-            double currentNumber;
-            double.TryParse(CurrentNumberL.Content.ToString(), out currentNumber);
+            decimal currentNumber;
+            decimal.TryParse(CurrentNumberL.Content.ToString(), out currentNumber);
             QueueRequests.Enqueue(currentNumber);
 
             await Task.Run(() =>
             {
-                double result;
+                decimal result;
                 QueueRequests.TryDequeue(out result);
                 _calculator.CurrentNumber = result;
                 foreach (var number in QueueRequests)
@@ -234,19 +236,19 @@ namespace TestTaskCalculatorWPF
         // Сброс числа
         private void ResetCurrentNumber()
         {
-            _currentNumber = 0.0;
+            _currentNumber = 0.0M;
             CurrentNumberL.Content = "0";
             _isInteger = true;
             _fractionNumber = 0;
         }
         // Сброс числа если оно было дробное
-        private void ResetCurrentNumber(double number)
+        private void ResetCurrentNumber(decimal number)
         {
             CurrentNumberL.Content = number.ToString();
             var numberString = number.ToString().Split(",");
             if (numberString.Length > 1)
             {
-                double.TryParse(numberString[0], out _currentNumber);
+                decimal.TryParse(numberString[0], out _currentNumber);
                 int.TryParse(numberString[1], out _fractionNumber);
             }
             else
@@ -259,16 +261,18 @@ namespace TestTaskCalculatorWPF
         // Добавление цифры в конец числа
         private void AppendCurrentNumber(int number)
         {
-            _currentNumber *= 10.0;
+            _currentNumber *= 10.0M;
             _currentNumber += number;
-            CurrentNumberL.Content = _currentNumber.ToString();
+            var integerCurrentNumber = Math.Truncate(_currentNumber);
+            CurrentNumberL.Content = integerCurrentNumber.ToString();
         }
         // Добавление цифры если число дробное
         private void AppendFractionalCurrentNumber(int number)
         {
+            var integerCurrentNumber = Math.Truncate(_currentNumber);
             _fractionNumber *= 10;
             _fractionNumber += number;
-            CurrentNumberL.Content = _currentNumber.ToString() + "," + _fractionNumber.ToString();
+            CurrentNumberL.Content = integerCurrentNumber + "," + _fractionNumber.ToString();
         }
         #region Operation Buttons
         private void Div_Click(object sender, RoutedEventArgs e)
@@ -327,8 +331,8 @@ namespace TestTaskCalculatorWPF
         #endregion
         private void SaveCurrentNumber()
         {
-            double result;
-            double.TryParse(CurrentNumberL.Content.ToString(), out result);
+            decimal result;
+            decimal.TryParse(CurrentNumberL.Content.ToString(), out result);
             _calculator.CurrentNumber = result;
             QueueRequests.Enqueue(result);
             UpdateLabelQueueRequestsAndQueueResults();
